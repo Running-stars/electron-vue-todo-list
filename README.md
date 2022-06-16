@@ -7,12 +7,12 @@ yarn install
 
 ### Compiles and hot-reloads for development
 ```
-yarn serve
+yarn electron:serve
 ```
 
 ### Compiles and minifies for production
 ```
-yarn build
+yarn electron:build
 ```
 
 ### Customize configuration
@@ -24,6 +24,4 @@ See [Configuration Reference](https://cli.vuejs.org/config/).
 3、点击完成任务，跳转到已完成界面；点击删除，可以删除任务
 4、点击右上角的 × 按钮，可以关闭主界面，要再次打开主界面，可以通过系统托盘
 5、设定的时间到了，会在右下角弹出提醒框，如下图所示。
-
-
-链接：https://juejin.cn/post/6983843979133468708
+6、首次打开应用时会读取本地待完成列表，继续未完成任务提醒
