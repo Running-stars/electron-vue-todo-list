@@ -10,24 +10,27 @@
           <el-link type="primary" @click="del(index)">删除</el-link>
         </p>
       </div>
-      <button @click="clear">清空所有待完成任务</button>
+      <button @click="clear" style="margin-right:10px">清空所有待完成任务</button>
+      <button @click="getVer">获取当前版本号为: {{version}}</button>
     </div>
   </div>
 </template>
 
 <script>
-import { setTaskTime, restartList } from '../utils/useIPC.js'
+import { setTaskTime, restartList, getVersion } from '../utils/useIPC.js'
 
 export default {
   name: 'todo',
   data() {
     return {
       list: [],
+      version: '',
     };
   },
   mounted() {
     this.getList();
-    this.restartList(this.restart)
+    this.restartList(this.restart);
+    this.getVer();
   },
   methods: {
     getList() {
@@ -70,7 +73,7 @@ export default {
       let res = this.list.filter((item) => {
         return this.conversionTime(time,item['date']) < 0
       });
-      console.log('过滤掉已经超时的任务',res)
+      console.log('过滤掉已经超时的任务',res);
       res.forEach(val => {
         setTaskTime(val['date'],val['name']); // 设置任务时间加入队列
       })
@@ -82,6 +85,14 @@ export default {
       return time - date;
     },
     restartList,
+    getVersion,
+    // 获取当前版本号
+    getVer() {
+      this.getVersion().then(res => {
+        this.version = res
+      console.log(res)
+      });
+    },
   },
 }
 </script>

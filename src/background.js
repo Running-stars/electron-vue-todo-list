@@ -1,16 +1,28 @@
 // 'use strict'
 
-import { app, protocol, BrowserWindow, ipcMain, Tray, Menu, screen } from 'electron'
+import { app, protocol, BrowserWindow, ipcMain, Tray, Menu, screen, dialog } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer'
+const { autoUpdater } = require('electron-updater')
 const isDevelopment = process.env.NODE_ENV !== 'production'
 const path = require('path')
 const iconPath = path.join(__static, 'icon.png')
+
+const AutoLaunch = require('auto-launch'); //开机启动方案一
+let myAutoLaunch; //开机启动方案一
+
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true } }
 ])
+
+// 禁止双开多开
+const additionalData = { myKey: 'myValue' };
+const gotTheLock = app.requestSingleInstanceLock(additionalData);
+if (!gotTheLock) {
+  app.quit()
+}
 
 let win,remindWindow,tray;
 async function createWindow() {
@@ -35,12 +47,18 @@ async function createWindow() {
   } else {
     createProtocol('app')
     // Load the index.html when not in development
-    win.loadURL(`app://${__dirname}/main.html`)
+    win.loadURL(`file://${__dirname}/main.html`)
   }
   win.removeMenu(); // 移除菜单项
-  // win.webContents.openDevTools(); // 打开控制台
+  win.webContents.openDevTools(); // 打开控制台
   setTray();
 }
+
+// 开机启动配置,开机启动方案
+myAutoLaunch = new AutoLaunch({
+  name: app.name,
+});
+
 
 // 设置托盘
 function setTray () {
@@ -58,6 +76,18 @@ function setTray () {
       {
         label: '退出',
         click: () => app.quit()
+      },
+      {
+        label: '开启开机自启动',
+        click: () => {
+          myAutoLaunch.enable(); //开机启动方案
+        }
+      },
+      {
+        label: '关闭开机自启动',
+        click: () => () => {
+          myAutoLaunch.disable(); //开机启动关闭方案
+        }
       }
     ])
     tray.popUpContextMenu(menuConfig)
@@ -92,6 +122,7 @@ app.on('ready', async () => {
     win.show()
     win.webContents.send('restart')
   })
+  checkUpdate(); //每次启动程序，就检查更新
 })
 
 // 监测通信主窗口关闭
@@ -102,6 +133,14 @@ ipcMain.on('mainWindow:close', () => {
 // 监测通信提示窗口关闭
 ipcMain.on('remindWindow:close', () => {
   remindWindow.close()
+})
+
+// 监测获取版本号
+ipcMain.handle('getVersion', async () => {
+  const result = await new Promise((resolve,reject) => {
+    resolve(app.getVersion())
+  })
+  return result
 })
 
 // 监测任务开始时间，时间结束显示提示窗口
@@ -152,23 +191,66 @@ async function createRemindWindow(task) {
   } else {
     createProtocol('app')
     // Load the index.html when not in development
-    remindWindow.loadURL(`app://${__dirname}/remind.html`)
+    remindWindow.loadURL(`file://${__dirname}/remind.html`)
   }
 
   remindWindow.show();
-  // remindWindow.webContents.on('did-finish-load', () => { // 页面加载后触发
-  //   console.log('999',task)
-  //   remindWindow.webContents.send('setTask', task)
-  // })
-
-  setTimeout( () => {
+  remindWindow.webContents.on('did-finish-load', () => { // 页面加载后触发,打包正式环境会触发，开发环境好像不会触发
     remindWindow.webContents.send('setTask', task)
-  }, 0)
+  })
+
+  // setTimeout( () => {
+  //   remindWindow.webContents.send('setTask', task); // 开发环境好像不会触发 did-finish-load 事件，所以用定时器代替
+  // }, 0)
 
   remindWindow.on('closed', () => { remindWindow = null })
   setTimeout( () => {
     remindWindow && remindWindow.close()
   }, 50 * 1000)
+}
+
+
+// 版本检测更新
+function checkUpdate() {
+  if(process.platform == 'darwin') {
+    //我们使用koa-static或http-server将静态目录设置成了static文件夹，
+    //所以访问http://127.0.0.1:8080/static/win32/，就相当于访问了static/darwin文件夹，win32同理
+    autoUpdater.setFeedURL('http://127.0.0.1:8080/static/darwin/')  //设置要检测更新的路径
+  }else {
+    console.log('hellokkk')
+    autoUpdater.setFeedURL('http://127.0.0.1:8080/static/win32/')
+  }
+
+  //检测更新
+  autoUpdater.checkForUpdates();
+
+  //监听'error'事件
+  autoUpdater.on('error', (err) => {
+    console.log(err)
+  })
+
+  //监听'update-available'事件，发现有新版本时触发
+  autoUpdater.on('update-available', () => {
+    console.log('发现新版本');
+    createRemindWindow('发现新版本，更新版本')
+  })
+
+  // autoUpdater.autoDownload = false; // 默认会自动下载新版本，如果不想自动下载设为false
+
+  //监听'update-downloaded'事件，新版本下载完成时触发
+  autoUpdater.on('update-downloaded', () => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: '应用更新',
+      message: '发现新版本，是否更新？',
+      buttons: ['是', '否']
+    }).then((buttonIndex) => {
+      if(buttonIndex.response == 0) {  //选择是(0)，则退出程序，安装新版本;否(1)则退出下一次重启打开程序是最新应用
+        autoUpdater.quitAndInstall() 
+        app.quit()
+      }
+    })
+  })
 }
 
 // Exit cleanly on request from parent process in development mode.

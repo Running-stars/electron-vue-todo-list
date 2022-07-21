@@ -21,3 +21,8 @@ export function restartList(fn) {
   ipcRenderer.once('restart',fn)
 }
 
+export async function getVersion() {
+  const result = await ipcRenderer.invoke('getVersion');
+  return result
+}
+
